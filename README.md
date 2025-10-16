@@ -1,2 +1,2 @@
 # EMS700U_Code
-This code is for the EMS700U Industry/Research Project module.
+This code was made for a brain subregion segmentation pipeline with integrated spatial analysis.
