@@ -6,63 +6,103 @@ This code was made for a brain subregion segmentation pipeline with integrated s
 
 # Control Architecture
 
-```mermaid
-flowchart TD
-    subgraph INPUTS["🔌 HARDWARE INPUTS"]
-        LDR["LDR\n(RA3, ADC Ch3)"]
-        BTN["RF2 Button"]
-        TMR["Timer0\n(16-bit)"]
-    end
+flowchart TB
 
-    LDR -->|"analog"| ADC
-    BTN -->|"digital"| BUTTON
-    TMR -->|"overflow IRQ"| TIMER
+%% =============================
+%% LAYER 1 — HARDWARE INPUTS
+%% =============================
 
-    subgraph DRIVERS["⚙️ PERIPHERAL DRIVERS"]
-        ADC["ADC Driver\n(ADC.c)"]
-        BUTTON["Button Driver\n(Buttons.c)"]
-        TIMER["Timer ISR\n(Timer.c)"]
-    end
+subgraph HW["Hardware Layer"]
+direction LR
+LDR([LDR — RA3])
+BTN([Button — RF2])
+TMR([Timer0 Peripheral])
+end
 
-    ADC --> MAIN
-    BUTTON --> MAIN
-    TIMER --> MAIN
+%% =============================
+%% LAYER 2 — DRIVERS / ISR
+%% =============================
 
-    subgraph MAIN["🔁 MAIN CONTROL LOOP — Main.c"]
-        direction TB
-        CAL["1. CALIBRATION PHASE\nDark sample → Light sample → Threshold & polarity"]
-        CAL --> LOOP
+subgraph DRV["Driver / ISR Layer"]
+direction LR
+ADC[ADC Driver<br/>ADC.c]
+BUTTON[Button Driver<br/>Buttons.c]
+TIMER[Timer ISR<br/>Timer.c]
+end
 
-        subgraph LOOP["2. SUPER-LOOP"]
-            direction TB
-            A["a) TIMEKEEPING\nAdvance HH:MM:SS"]
-            B["b) DST CHECK\nSpring forward / fall back"]
-            C["c) LDR POLL\n32-sample avg → isDark"]
-            D["d) LIGHT DECISION\ndark AND NOT 1am–5am"]
-            E["e) OUTPUT UPDATE\nLEDs + LCD"]
-            F["f) HEARTBEAT\nToggle LED 8 every 2s"]
-            A --> B --> C --> D --> E --> F
-        end
+LDR -->|Analog| ADC
+BTN -->|Digital| BUTTON
+TMR -->|Interrupt| TIMER
 
-        LOOP --> SUP
-        subgraph SUP["Supporting Modules"]
-            CAL_MOD["Calendar.c\ndates · leap year · UK BST"]
-            CFG["Config.h\ntimers · energy-save · mode"]
-        end
-    end
+%% =============================
+%% LAYER 3 — MAIN APPLICATION
+%% =============================
 
-    MAIN --> LEDS_DRV
-    MAIN --> LCD_DRV
+subgraph MAIN["Main Application — Superloop (Main.c)"]
+direction TB
 
-    subgraph OUTPUTS["💡 HARDWARE OUTPUTS"]
-        subgraph LEDS_DRV["LED Driver — LEDS.c"]
-            L1["LEDs 1–5 : Binary hour clock"]
-            L2["LED 8 : Heartbeat"]
-            L3["LED 9 : Main streetlight"]
-        end
-        subgraph LCD_DRV["LCD Driver — LCD.c"]
-            R0["Row 0 : HH:MM AM/PM BST/GMT"]
-            R1["Row 1 : DD/MM/YYYY"]
-        end
-    end
-```
+CAL[Calibration<br/>Light/Dark Threshold]
+
+subgraph LOOP["Main Control Flow"]
+direction TB
+TIME[Timekeeping<br/>HH:MM:SS]
+DST[DST & Calendar Check]
+SENSE[LDR Sampling<br/>32-sample average]
+DECIDE{Dark AND<br/>NOT 1–5am?}
+OUT[Update Outputs<br/>LEDs + LCD]
+end
+
+CAL --> TIME
+TIME --> DST --> SENSE --> DECIDE
+DECIDE -->|Yes| OUT
+DECIDE -->|No| OUT
+end
+
+%% =============================
+%% SUPPORT MODULES
+%% =============================
+
+subgraph SUPPORT["Supporting Modules"]
+direction LR
+CALMOD[Calendar.c<br/>Leap year · UK BST]
+CFG[Config.h<br/>Energy-save · Timers]
+end
+
+DST -.-> CALMOD
+TIME -.-> CFG
+
+%% =============================
+%% OUTPUT LAYER
+%% =============================
+
+subgraph OUTPUT["Hardware Outputs"]
+direction LR
+
+subgraph LEDS_DRV["LED Driver — LEDS.c"]
+direction TB
+L1[Binary Clock LEDs]
+L2[Heartbeat LED]
+L3[Streetlight LED]
+end
+
+subgraph LCD_DRV["LCD Driver — LCD.c"]
+direction TB
+R0[Time + BST/GMT]
+R1[Date DD/MM/YYYY]
+end
+
+end
+
+OUT --> LEDS_DRV
+OUT --> LCD_DRV
+
+%% =============================
+%% STYLING
+%% =============================
+
+style HW fill:#f8f9fa,stroke:#333
+style DRV fill:#e3f2fd,stroke:#1565c0
+style MAIN fill:#e8f5e9,stroke:#2e7d32
+style SUPPORT fill:#fff3e0,stroke:#ef6c00
+style OUTPUT fill:#f3e5f5,stroke:#6a1b9a
+
